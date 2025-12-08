@@ -1,20 +1,20 @@
 // Utility to check if data exists for a group ID
-export function checkGroupData(groupId: string): {
+import { getGroupData, getTrackingDataByGroup, getAllTrackingData } from './storage';
+
+export async function checkGroupData(groupId: string): Promise<{
   exists: boolean;
   groupInfo: any;
   trackingDataCount: number;
   hasData: boolean;
-} {
-  // Check group info
-  const groupInfoStr = localStorage.getItem(`group_${groupId}`);
-  const groupInfo = groupInfoStr ? JSON.parse(groupInfoStr) : null;
+}> {
+  // Check group info using new storage system
+  const groupInfo = await getGroupData(groupId);
 
-  // Check tracking data for this group
-  const groupTrackingDataStr = localStorage.getItem(`group_tracking_${groupId}`);
-  const groupTrackingData = groupTrackingDataStr ? JSON.parse(groupTrackingDataStr) : [];
+  // Check tracking data for this group using new storage system
+  const groupTrackingData = await getTrackingDataByGroup(groupId);
 
   // Check in all tracking data
-  const allTrackingData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
+  const allTrackingData = await getAllTrackingData();
   const groupEntries = allTrackingData.filter((d: any) => d.metadata?.groupId === groupId);
 
   return {

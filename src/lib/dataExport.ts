@@ -1,6 +1,7 @@
 // Data Export Utility - Save all tracking data to files organized by group ID
 import JSZip from 'jszip';
 import { CollectedData } from './dataCollection';
+import { getTrackingDataByGroup, getGroupData, getAllTrackingData } from './storage';
 
 /**
  * Export all data for a specific group to downloadable files
@@ -8,18 +9,16 @@ import { CollectedData } from './dataCollection';
  */
 export async function exportGroupData(groupId: string): Promise<void> {
   try {
-    // Load all tracking data for this group
-    const groupTrackingData = JSON.parse(
-      localStorage.getItem(`group_tracking_${groupId}`) || '[]'
-    ) as CollectedData[];
+    // Load all tracking data for this group using new storage system
+    const groupTrackingData = await getTrackingDataByGroup(groupId);
 
     if (groupTrackingData.length === 0) {
       alert('No data found for this group');
       return;
     }
 
-    // Load group info
-    const groupData = JSON.parse(localStorage.getItem(`group_${groupId}`) || '{}');
+    // Load group info using new storage system
+    const groupData = await getGroupData(groupId) || {};
 
     // Create zip file
     const zip = new JSZip();

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { CollectedData } from '@/lib/dataCollection';
 import { exportGroupData, exportAllData } from '@/lib/dataExport';
 import { checkGroupData } from '@/lib/checkData';
+import { getAllTrackingData } from '@/lib/storage';
 import { Download, MagnifyingGlass, Users, MapPin, Shield, Clock, Warning, CheckCircle, XCircle } from '@phosphor-icons/react';
 
 export default function ViewDataPage() {
@@ -17,9 +18,9 @@ export default function ViewDataPage() {
     loadData();
   }, []);
 
-  const loadData = () => {
-    // Load all tracking data
-    const data = JSON.parse(localStorage.getItem('tracking_data') || '[]') as CollectedData[];
+  const loadData = async () => {
+    // Load all tracking data using new storage system
+    const data = await getAllTrackingData();
     setAllData(data);
     
     // Get unique group IDs

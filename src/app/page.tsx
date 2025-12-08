@@ -5,6 +5,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { WhatsappLogo, Link, ChatCircle, Image as ImageIcon, Upload, QrCode, Copy, Check, X, Shield, MapPin, Camera, Users, PaperPlaneTilt, FacebookLogo, Download } from '@phosphor-icons/react';
 import { twMerge } from 'tailwind-merge';
 import { exportGroupData } from '@/lib/dataExport';
+import { saveGroupData } from '@/lib/storage';
 
 export default function Home() {
   const [groupName, setGroupName] = useState('');
@@ -25,7 +26,7 @@ export default function Home() {
     }
   };
 
-  const generateLink = () => {
+  const generateLink = async () => {
     // Validate: group name required; image optional
     if (!groupName.trim()) {
       alert('Please enter a group name');
@@ -35,7 +36,7 @@ export default function Home() {
     // Generate a unique ID for this group
     const groupId = Math.random().toString(36).substring(2, 15);
     
-    // Store group data in localStorage (in production, use a database)
+    // Store group data using new storage system
     const groupData = {
       id: groupId,
       name: groupName,
@@ -43,7 +44,8 @@ export default function Home() {
       createdAt: new Date().toISOString(),
     };
     
-    localStorage.setItem(`group_${groupId}`, JSON.stringify(groupData));
+    // Save group data using new storage system
+    await saveGroupData(groupId, groupData);
     
     // Generate the tracking link
     const link = `${window.location.origin}/join/${groupId}`;

