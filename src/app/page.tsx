@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   WhatsappLogo,
   PaperPlaneTilt,
@@ -234,6 +235,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [qrSize, setQrSize] = useState(280);
 
   const isFormValid = useMemo(() => groupName.trim().length > 0, [groupName]);
 
@@ -309,6 +311,16 @@ export default function Home() {
     const id = setInterval(check, 1000);
     return () => clearInterval(id);
   }, [linkExpiresAt]);
+
+  // Set QR code size based on screen width (larger on mobile)
+  useEffect(() => {
+    const updateQrSize = () => {
+      setQrSize(window.innerWidth < 640 ? 280 : 220);
+    };
+    updateQrSize();
+    window.addEventListener('resize', updateQrSize);
+    return () => window.removeEventListener('resize', updateQrSize);
+  }, []);
 
   return (
     <div className="relative min-h-screen bg-slate-950 flex items-center justify-center py-8 px-3 sm:py-12 sm:px-5 overflow-hidden">
@@ -411,9 +423,26 @@ export default function Home() {
                         <Copy className="w-5 h-5" weight="bold" />
                         <span>{copied ? 'Copied!' : 'Copy'}</span>
                       </button>
-                      <div className="px-4 py-3 bg-slate-950/60 border border-white/10 rounded-xl flex items-center justify-center space-x-2">
+                    </div>
+                  </div>
+
+                  {/* QR Code Section - Larger on mobile */}
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <div className="bg-slate-950/60 border border-white/10 rounded-2xl p-4 sm:p-6 flex flex-col items-center space-y-3 w-full">
+                      <p className="text-sm sm:text-base font-semibold text-white flex items-center space-x-2">
                         <QrCode className="w-5 h-5 text-cyan-300" weight="bold" />
-                        <span className="text-sm text-white">Scan on mobile</span>
+                        <span>Scan on mobile</span>
+                      </p>
+                      <div className="bg-white p-3 sm:p-4 rounded-xl flex items-center justify-center w-full">
+                        <div className="w-full max-w-[280px] sm:max-w-[220px] aspect-square flex items-center justify-center">
+                          <QRCodeCanvas 
+                            value={generatedLink} 
+                            size={qrSize}
+                            level="M"
+                            includeMargin={true}
+                            className="rounded-lg"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

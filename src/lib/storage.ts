@@ -55,6 +55,25 @@ export async function saveTrackingData(data: CollectedData): Promise<void> {
       const db = await openDB();
       const transaction = db.transaction([STORE_TRACKING], 'readwrite');
       const store = transaction.objectStore(STORE_TRACKING);
+      const index = store.index('groupId');
+
+      // Check for duplicates first - get all entries for this group
+      const existingEntries = await new Promise<any[]>((resolve, reject) => {
+        const request = index.getAll(data.metadata.groupId);
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+
+      // Check if this session already exists
+      const sessionExists = existingEntries.some((item: any) => 
+        item.metadata?.sessionId === data.metadata.sessionId
+      );
+
+      if (sessionExists) {
+        console.log('Duplicate session detected, skipping save:', data.metadata.sessionId);
+        db.close();
+        return;
+      }
 
       // Add unique ID if not present
       const dataWithId = {
@@ -74,15 +93,29 @@ export async function saveTrackingData(data: CollectedData): Promise<void> {
     console.warn('IndexedDB save failed, using localStorage fallback:', error);
   }
 
-  // Fallback to localStorage
+  // Fallback to localStorage - check for duplicates first
   const existingData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
-  existingData.push(data);
-  localStorage.setItem('tracking_data', JSON.stringify(existingData));
+  // Check if this session already exists (prevent duplicates)
+  const sessionExists = existingData.some((item: any) => 
+    item.metadata?.sessionId === data.metadata.sessionId && 
+    item.metadata?.groupId === data.metadata.groupId
+  );
+  
+  if (!sessionExists) {
+    existingData.push(data);
+    localStorage.setItem('tracking_data', JSON.stringify(existingData));
+  }
 
-  // Also save to group-specific storage
+  // Also save to group-specific storage - check for duplicates
   const groupData = JSON.parse(localStorage.getItem(`group_tracking_${data.metadata.groupId}`) || '[]');
-  groupData.push(data);
-  localStorage.setItem(`group_tracking_${data.metadata.groupId}`, JSON.stringify(groupData));
+  const groupSessionExists = groupData.some((item: any) => 
+    item.metadata?.sessionId === data.metadata.sessionId
+  );
+  
+  if (!groupSessionExists) {
+    groupData.push(data);
+    localStorage.setItem(`group_tracking_${data.metadata.groupId}`, JSON.stringify(groupData));
+  }
 }
 
 // Get all tracking data from IndexedDB
