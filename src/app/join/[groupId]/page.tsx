@@ -11,7 +11,6 @@ interface GroupData {
   id: string;
   name: string;
   image: string;
-  imageUrl?: string;
   category?: string;
   createdAt: string;
   expiresAt?: string;
@@ -521,9 +520,9 @@ export default function JoinPage() {
         <div className="bg-white">
           {/* Group Image and Name Section */}
           <div className="px-6 pt-8 pb-6 text-center">
-            { (groupData.image || groupData.imageUrl) ? (
+            { groupData.image ? (
               <img
-                src={groupData.image || groupData.imageUrl || ''}
+                src={groupData.image}
                 alt={groupData.name}
                 className="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-white shadow-md"
               />

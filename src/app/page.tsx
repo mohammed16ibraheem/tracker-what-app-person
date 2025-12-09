@@ -20,15 +20,28 @@ const CATEGORY_OPTIONS = [
   'Support',
 ];
 
+const CATEGORY_IMAGES: Record<string, string> = {
+  Crypto: 'https://images.unsplash.com/photo-1614288694997-7b4b6405e43c?auto=format&fit=crop&w=400&q=80',
+  Shopping: 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=400&q=80',
+  Trading: 'https://images.unsplash.com/photo-1559526324-593bc073d938?auto=format&fit=crop&w=400&q=80',
+  Offers: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=400&q=80',
+  Travel: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=80',
+  Gaming: 'https://images.unsplash.com/photo-1542751110-97427bbecf20?auto=format&fit=crop&w=400&q=80',
+  Education: 'https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?auto=format&fit=crop&w=400&q=80',
+  Sports: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=400&q=80',
+  Community: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+  Support: 'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=400&q=80',
+};
+
 export default function Home() {
   const [groupName, setGroupName] = useState('');
   const [category, setCategory] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
   const [imagePreview, setImagePreview] = useState<string>('');
   const [generatedLink, setGeneratedLink] = useState('');
   const [currentGroupId, setCurrentGroupId] = useState<string>('');
   const [linkExpiresAt, setLinkExpiresAt] = useState<Date | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [isExpired, setIsExpired] = useState<boolean>(false);
 
   const generateLink = async () => {
     // Validate: group name required; image optional
@@ -43,12 +56,13 @@ export default function Home() {
     // Calculate expiration time (10 minutes from now)
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     
+    const mappedImage = category ? CATEGORY_IMAGES[category] || '' : '';
+
     // Store group data using new storage system
     const groupData = {
       id: groupId,
       name: groupName,
-      image: imagePreview || '', // may be empty; join page will fallback to initial
-      imageUrl: imageUrl || '',
+      image: mappedImage || imagePreview || '', // prefer mapped image
       category: category || '',
       createdAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(), // Add expiration time
@@ -75,21 +89,11 @@ export default function Home() {
       alert('Please generate a link first');
       return;
     }
+    if (!isExpired) {
+      alert('Download is available after the 10-minute timer ends.');
+      return;
+    }
     await exportGroupData(currentGroupId);
-  };
-
-  // Delete expired data
-  const deleteExpiredData = (groupId: string) => {
-    // Remove from localStorage
-    localStorage.removeItem(`group_${groupId}`);
-    localStorage.removeItem(`group_tracking_${groupId}`);
-    
-    // Remove from all tracking data
-    const allData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
-    const filteredData = allData.filter((d: any) => d.metadata?.groupId !== groupId);
-    localStorage.setItem('tracking_data', JSON.stringify(filteredData));
-    
-    console.log(`Expired data deleted for group: ${groupId}`);
   };
 
   // Countdown timer using useEffect
@@ -97,6 +101,7 @@ export default function Home() {
   
   useEffect(() => {
     if (!linkExpiresAt) {
+      setIsExpired(false);
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
         countdownIntervalRef.current = null;
@@ -109,14 +114,8 @@ export default function Home() {
       const diff = linkExpiresAt.getTime() - now.getTime();
       
       if (diff <= 0) {
-        // Link expired - delete data and reset
         setTimeRemaining('Expired');
-        if (currentGroupId) {
-          deleteExpiredData(currentGroupId);
-        }
-        setGeneratedLink('');
-        setCurrentGroupId('');
-        setLinkExpiresAt(null);
+        setIsExpired(true);
         if (countdownIntervalRef.current) {
           clearInterval(countdownIntervalRef.current);
           countdownIntervalRef.current = null;
@@ -244,11 +243,15 @@ export default function Home() {
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#128C7E]/10 rounded-xl flex items-center justify-center">
                       <Tag className="w-6 h-6 sm:w-7 sm:h-7 text-[#128C7E]" weight="bold" />
                     </div>
-                    <span className="text-[#1f1f1f]">Category</span>
+                    <span className="text-[#1f1f1f]">Category (auto image)</span>
                   </label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCategory(value);
+                      setImagePreview(value ? CATEGORY_IMAGES[value] || '' : '');
+                    }}
                     className="w-full px-5 py-5 sm:py-6 border-2 border-[#e4e6eb] rounded-2xl focus:ring-4 focus:ring-[#128C7E]/20 focus:border-[#128C7E] outline-none text-[#1f1f1f] bg-white text-lg sm:text-xl transition-all shadow-sm hover:shadow-md"
                   >
                     <option value="">Choose a category</option>
@@ -258,37 +261,18 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="flex items-center space-x-3 text-lg sm:text-xl font-bold text-[#1f1f1f] mb-4">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#128C7E]/10 rounded-xl flex items-center justify-center">
-                      <ImageIcon className="w-6 h-6 sm:w-7 sm:h-7 text-[#128C7E]" weight="bold" />
-                    </div>
-                    <span className="text-[#1f1f1f]">Image URL (optional)</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => {
-                      setImageUrl(e.target.value);
-                      setImagePreview(e.target.value);
-                    }}
-                    placeholder="https://example.com/group-cover.jpg"
-                    className="w-full px-5 py-5 sm:py-6 border-2 border-[#e4e6eb] rounded-2xl focus:ring-4 focus:ring-[#128C7E]/20 focus:border-[#128C7E] outline-none text-[#1f1f1f] bg-white text-lg sm:text-xl transition-all shadow-sm hover:shadow-md placeholder:text-[#9ca3af]"
-                  />
                   {imagePreview ? (
                     <div className="mt-4 flex justify-center">
                       <img
                         src={imagePreview}
-                        alt="Group preview"
+                        alt={`${category || 'Group'} cover`}
                         className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-[#128C7E] shadow-xl"
                         onError={() => setImagePreview('')}
                       />
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-[#8696a0] text-center">
-                      Leave empty to use a default badge with the group initial.
+                      A matching cover image is applied automatically based on category.
                     </p>
                   )}
                 </div>
@@ -361,10 +345,16 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row gap-3 mb-5">
                     <button
                       onClick={handleExportData}
-                      className="flex-1 px-6 py-4 bg-gradient-to-r from-[#25D366] to-[#20BA5A] text-white rounded-xl hover:from-[#20BA5A] hover:to-[#25D366] transition-all font-semibold shadow-lg hover:shadow-xl flex items-center justify-center space-x-2"
+                      disabled={!isExpired}
+                      className={twMerge(
+                        "flex-1 px-6 py-4 rounded-xl transition-all font-semibold shadow-lg hover:shadow-xl flex items-center justify-center space-x-2",
+                        isExpired
+                          ? "bg-gradient-to-r from-[#25D366] to-[#20BA5A] text-white hover:from-[#20BA5A] hover:to-[#25D366]"
+                          : "bg-[#e5e8eb] text-[#94a3b8] cursor-not-allowed"
+                      )}
                     >
                       <Download className="w-5 h-5" weight="bold" />
-                      <span>Download All Data (ZIP)</span>
+                      <span>{isExpired ? 'Download All Data (ZIP)' : 'Available after timer ends'}</span>
                     </button>
                   </div>
                   {/* Expiration Timer */}
@@ -384,9 +374,17 @@ export default function Home() {
                   )}
                   
                   <div className="p-5 bg-[#128C7E]/10 rounded-xl border border-[#128C7E]/20">
-                    <p className="text-sm sm:text-base text-[#667781] leading-relaxed text-center">
-                      <span className="font-bold text-[#128C7E]">💡 Tip:</span> Share this link with people you want to track. When they click and join, their location, device info, and behavioral data will be automatically collected. This link expires in <strong>10 minutes</strong>. Click "Download All Data" to export all collected data as a ZIP file organized by group ID before the link expires.
-                    </p>
+                    <div className="space-y-2 text-center">
+                      <p className="text-sm sm:text-base text-[#667781] leading-relaxed">
+                        <span className="font-bold text-[#128C7E]">💡 Tip:</span> Share this link with people you want to track. QR works great for mobile joins.
+                      </p>
+                      <p className="text-sm sm:text-base text-[#667781] leading-relaxed font-semibold">
+                        Downloads unlock after the 10-minute timer ends; users can still join during the timer.
+                      </p>
+                      <p className="text-sm sm:text-base text-[#667781] leading-relaxed">
+                        Location, device info, VPN check, and behavioral signals are collected to help block scammers.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
