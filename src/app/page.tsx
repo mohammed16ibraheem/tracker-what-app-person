@@ -2,31 +2,33 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { WhatsappLogo, Link, ChatCircle, Image as ImageIcon, Upload, QrCode, Copy, Check, X, Shield, MapPin, Camera, Users, PaperPlaneTilt, FacebookLogo, Download, Clock } from '@phosphor-icons/react';
+import { WhatsappLogo, Link, ChatCircle, Image as ImageIcon, QrCode, Copy, Check, X, Shield, MapPin, Camera, Users, PaperPlaneTilt, FacebookLogo, Download, Clock, Tag } from '@phosphor-icons/react';
 import { twMerge } from 'tailwind-merge';
 import { exportGroupData } from '@/lib/dataExport';
 import { saveGroupData } from '@/lib/storage';
 
+const CATEGORY_OPTIONS = [
+  'Crypto',
+  'Shopping',
+  'Trading',
+  'Offers',
+  'Travel',
+  'Gaming',
+  'Education',
+  'Sports',
+  'Community',
+  'Support',
+];
+
 export default function Home() {
   const [groupName, setGroupName] = useState('');
-  const [groupImage, setGroupImage] = useState<File | null>(null);
+  const [category, setCategory] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [imagePreview, setImagePreview] = useState<string>('');
   const [generatedLink, setGeneratedLink] = useState('');
   const [currentGroupId, setCurrentGroupId] = useState<string>('');
   const [linkExpiresAt, setLinkExpiresAt] = useState<Date | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setGroupImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const generateLink = async () => {
     // Validate: group name required; image optional
@@ -45,7 +47,9 @@ export default function Home() {
     const groupData = {
       id: groupId,
       name: groupName,
-      image: imagePreview, // may be empty; join page will fallback to initial
+      image: imagePreview || '', // may be empty; join page will fallback to initial
+      imageUrl: imageUrl || '',
+      category: category || '',
       createdAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(), // Add expiration time
     };
@@ -54,7 +58,12 @@ export default function Home() {
     await saveGroupData(groupId, groupData);
     
     // Generate the tracking link
-    const link = `${window.location.origin}/join/${groupId}`;
+    // Embed minimal group info in the URL so it works across devices
+    // even if local storage/IndexedDB is empty on the recipient device.
+    const encodedInfo = encodeURIComponent(
+      btoa(unescape(encodeURIComponent(JSON.stringify(groupData))))
+    );
+    const link = `${window.location.origin}/join/${groupId}?info=${encodedInfo}`;
     setGeneratedLink(link);
     setCurrentGroupId(groupId);
     setLinkExpiresAt(expiresAt);
@@ -228,56 +237,60 @@ export default function Home() {
                 />
               </div>
 
-              {/* Group Image Upload - Enhanced */}
-              <div>
-                <label className="flex items-center space-x-3 text-lg sm:text-xl font-bold text-[#1f1f1f] mb-5">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#128C7E]/10 rounded-xl flex items-center justify-center">
-                    <ImageIcon className="w-6 h-6 sm:w-7 sm:h-7 text-[#128C7E]" weight="bold" />
-                  </div>
-                  <span className="text-[#1f1f1f]">Group Image</span>
-                </label>
-                <div className="flex flex-col items-center space-y-5">
+              {/* Category and Image URL (no upload) */}
+              <div className="space-y-6">
+                <div>
+                  <label className="flex items-center space-x-3 text-lg sm:text-xl font-bold text-[#1f1f1f] mb-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#128C7E]/10 rounded-xl flex items-center justify-center">
+                      <Tag className="w-6 h-6 sm:w-7 sm:h-7 text-[#128C7E]" weight="bold" />
+                    </div>
+                    <span className="text-[#1f1f1f]">Category</span>
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-5 py-5 sm:py-6 border-2 border-[#e4e6eb] rounded-2xl focus:ring-4 focus:ring-[#128C7E]/20 focus:border-[#128C7E] outline-none text-[#1f1f1f] bg-white text-lg sm:text-xl transition-all shadow-sm hover:shadow-md"
+                  >
+                    <option value="">Choose a category</option>
+                    {CATEGORY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="flex items-center space-x-3 text-lg sm:text-xl font-bold text-[#1f1f1f] mb-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#128C7E]/10 rounded-xl flex items-center justify-center">
+                      <ImageIcon className="w-6 h-6 sm:w-7 sm:h-7 text-[#128C7E]" weight="bold" />
+                    </div>
+                    <span className="text-[#1f1f1f]">Image URL (optional)</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => {
+                      setImageUrl(e.target.value);
+                      setImagePreview(e.target.value);
+                    }}
+                    placeholder="https://example.com/group-cover.jpg"
+                    className="w-full px-5 py-5 sm:py-6 border-2 border-[#e4e6eb] rounded-2xl focus:ring-4 focus:ring-[#128C7E]/20 focus:border-[#128C7E] outline-none text-[#1f1f1f] bg-white text-lg sm:text-xl transition-all shadow-sm hover:shadow-md placeholder:text-[#9ca3af]"
+                  />
                   {imagePreview ? (
-                    <div className="relative group">
+                    <div className="mt-4 flex justify-center">
                       <img
                         src={imagePreview}
                         alt="Group preview"
                         className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-4 border-[#128C7E] shadow-xl"
+                        onError={() => setImagePreview('')}
                       />
-                      <button
-                        onClick={() => {
-                          setImagePreview('');
-                          setGroupImage(null);
-                        }}
-                        className="absolute -top-3 -right-3 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center text-lg hover:bg-red-600 transition-all shadow-lg hover:scale-110"
-                      >
-                        ×
-                      </button>
                     </div>
                   ) : (
-                    <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl bg-gradient-to-br from-[#128C7E] to-[#075E54] flex items-center justify-center border-4 border-[#e4e6eb] shadow-lg">
-                      <ImageIcon className="w-16 h-16 sm:w-20 sm:h-20 text-white" weight="fill" />
-                    </div>
+                    <p className="mt-3 text-sm text-[#8696a0] text-center">
+                      Leave empty to use a default badge with the group initial.
+                    </p>
                   )}
-                  <label className="w-full cursor-pointer">
-                    <div className="px-8 py-8 sm:py-10 border-3 border-dashed border-[#128C7E] rounded-2xl text-center hover:bg-[#128C7E]/5 transition-all bg-gradient-to-br from-[#f0f2f5] to-[#e5e8eb] group hover:border-[#25D366] hover:shadow-lg">
-                      <div className="flex flex-col items-center justify-center space-y-3">
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#128C7E]/10 rounded-2xl flex items-center justify-center group-hover:bg-[#128C7E]/20 transition-all">
-                          <Upload className="w-8 h-8 sm:w-10 sm:h-10 text-[#128C7E] group-hover:scale-110 transition-transform" weight="bold" />
-                        </div>
-                        <div>
-                          <span className="text-[#128C7E] font-bold text-lg sm:text-xl block mb-1">Click to upload image</span>
-                          <p className="text-sm sm:text-base text-[#667781]">PNG, JPG up to 5MB</p>
-                        </div>
-                      </div>
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
-                  </label>
                 </div>
               </div>
 

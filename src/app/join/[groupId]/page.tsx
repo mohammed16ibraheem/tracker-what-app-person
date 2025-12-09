@@ -11,7 +11,10 @@ interface GroupData {
   id: string;
   name: string;
   image: string;
+  imageUrl?: string;
+  category?: string;
   createdAt: string;
+  expiresAt?: string;
 }
 
 export default function JoinPage() {
@@ -48,6 +51,22 @@ export default function JoinPage() {
         }
       }
       
+      // Try to read from URL-embedded info (shared across devices)
+      try {
+        const url = new URL(window.location.href);
+        const info = url.searchParams.get('info');
+        if (info) {
+          const decoded = JSON.parse(decodeURIComponent(atob(info)));
+          if (decoded?.id === groupId) {
+            setGroupData(decoded);
+            localStorage.setItem(`group_${groupId}`, JSON.stringify(decoded));
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error decoding invite info from URL:', error);
+      }
+
       // Try to get groupId from URL if not in params
       const urlPath = window.location.pathname;
       const urlGroupId = urlPath.split('/join/')[1]?.split('/')[0]?.split('?')[0];
@@ -415,7 +434,44 @@ export default function JoinPage() {
     requestLocation();
   };
 
+  const isExpired = () => {
+    if (!groupData?.expiresAt) return false;
+    return new Date(groupData.expiresAt).getTime() < Date.now();
+  };
+
   if (!groupData) {
+    // Without group data we cannot render the invite; show expired-style message
+    return (
+      <div className="min-h-screen bg-[#e5ddd5] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white shadow-sm">
+          {/* WhatsApp-style Header */}
+          <div className="bg-[#075E54] text-white">
+            <div className="px-4 py-3 flex items-center">
+              <WhatsappLogo className="w-6 h-6 text-white mr-3" weight="fill" />
+              <h1 className="text-lg font-medium">WhatsApp</h1>
+            </div>
+          </div>
+          
+          {/* Expired Message */}
+          <div className="bg-white px-6 py-8">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+                <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-2xl font-bold">!</span>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-[#1f1f1f] mb-2">This link has expired</h3>
+              <p className="text-[#667781] text-sm">
+                This group invitation link has expired. Links expire after 10 minutes for security purposes. Please request a new link.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isExpired()) {
     return (
       <div className="min-h-screen bg-[#e5ddd5] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white shadow-sm">
@@ -465,9 +521,9 @@ export default function JoinPage() {
         <div className="bg-white">
           {/* Group Image and Name Section */}
           <div className="px-6 pt-8 pb-6 text-center">
-            {groupData.image ? (
+            { (groupData.image || groupData.imageUrl) ? (
               <img
-                src={groupData.image}
+                src={groupData.image || groupData.imageUrl || ''}
                 alt={groupData.name}
                 className="w-32 h-32 rounded-full mx-auto mb-4 object-cover border-4 border-white shadow-md"
               />
@@ -523,9 +579,6 @@ export default function JoinPage() {
                 )}
               </button>
 
-              <p className="text-xs text-[#8696a0] text-center mt-4 leading-relaxed">
-                By joining, you agree to share your location for verification purposes.
-              </p>
             </div>
           ) : (
             <div className="px-6 py-8">
