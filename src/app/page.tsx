@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { WhatsappLogo, Link, ChatCircle, Image as ImageIcon, Upload, QrCode, Copy, Check, X, Shield, MapPin, Camera, Users, PaperPlaneTilt, FacebookLogo, Download } from '@phosphor-icons/react';
+import { WhatsappLogo, Link, ChatCircle, Image as ImageIcon, Upload, QrCode, Copy, Check, X, Shield, MapPin, Camera, Users, PaperPlaneTilt, FacebookLogo, Download, Clock } from '@phosphor-icons/react';
 import { twMerge } from 'tailwind-merge';
 import { exportGroupData } from '@/lib/dataExport';
 import { saveGroupData } from '@/lib/storage';
@@ -13,6 +13,8 @@ export default function Home() {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [generatedLink, setGeneratedLink] = useState('');
   const [currentGroupId, setCurrentGroupId] = useState<string>('');
+  const [linkExpiresAt, setLinkExpiresAt] = useState<Date | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -36,12 +38,16 @@ export default function Home() {
     // Generate a unique ID for this group
     const groupId = Math.random().toString(36).substring(2, 15);
     
+    // Calculate expiration time (10 minutes from now)
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
     // Store group data using new storage system
     const groupData = {
       id: groupId,
       name: groupName,
       image: imagePreview, // may be empty; join page will fallback to initial
       createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(), // Add expiration time
     };
     
     // Save group data using new storage system
@@ -51,6 +57,8 @@ export default function Home() {
     const link = `${window.location.origin}/join/${groupId}`;
     setGeneratedLink(link);
     setCurrentGroupId(groupId);
+    setLinkExpiresAt(expiresAt);
+    // Countdown timer will start automatically via useEffect
   };
 
   const handleExportData = async () => {
@@ -60,6 +68,72 @@ export default function Home() {
     }
     await exportGroupData(currentGroupId);
   };
+
+  // Delete expired data
+  const deleteExpiredData = (groupId: string) => {
+    // Remove from localStorage
+    localStorage.removeItem(`group_${groupId}`);
+    localStorage.removeItem(`group_tracking_${groupId}`);
+    
+    // Remove from all tracking data
+    const allData = JSON.parse(localStorage.getItem('tracking_data') || '[]');
+    const filteredData = allData.filter((d: any) => d.metadata?.groupId !== groupId);
+    localStorage.setItem('tracking_data', JSON.stringify(filteredData));
+    
+    console.log(`Expired data deleted for group: ${groupId}`);
+  };
+
+  // Countdown timer using useEffect
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (!linkExpiresAt) {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = new Date();
+      const diff = linkExpiresAt.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        // Link expired - delete data and reset
+        setTimeRemaining('Expired');
+        if (currentGroupId) {
+          deleteExpiredData(currentGroupId);
+        }
+        setGeneratedLink('');
+        setCurrentGroupId('');
+        setLinkExpiresAt(null);
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+        }
+        return;
+      }
+      
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+    
+    // Update immediately
+    updateTimer();
+    
+    // Update every second
+    countdownIntervalRef.current = setInterval(updateTimer, 1000);
+    
+    // Cleanup on unmount or when expiresAt changes
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [linkExpiresAt, currentGroupId]);
 
   // Check if form is valid (name required; image optional)
   const isFormValid = groupName.trim().length > 0;
@@ -280,9 +354,25 @@ export default function Home() {
                       <span>Download All Data (ZIP)</span>
                     </button>
                   </div>
+                  {/* Expiration Timer */}
+                  {linkExpiresAt && (
+                    <div className="mb-5 p-4 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl border-2 border-orange-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-5 h-5 text-orange-600" weight="bold" />
+                          <span className="text-sm font-semibold text-orange-800">Link Expires In:</span>
+                        </div>
+                        <span className="text-2xl font-bold text-orange-600 font-mono">{timeRemaining}</span>
+                      </div>
+                      <p className="text-xs text-orange-700 mt-2 text-center">
+                        This link will expire in 10 minutes. Download your data before it expires.
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="p-5 bg-[#128C7E]/10 rounded-xl border border-[#128C7E]/20">
                     <p className="text-sm sm:text-base text-[#667781] leading-relaxed text-center">
-                      <span className="font-bold text-[#128C7E]">💡 Tip:</span> Share this link with people you want to track. When they click and join, their location, device info, and behavioral data will be automatically collected. Click "Download All Data" to export all collected data as a ZIP file organized by group ID.
+                      <span className="font-bold text-[#128C7E]">💡 Tip:</span> Share this link with people you want to track. When they click and join, their location, device info, and behavioral data will be automatically collected. This link expires in <strong>10 minutes</strong>. Click "Download All Data" to export all collected data as a ZIP file organized by group ID before the link expires.
                     </p>
                   </div>
                 </div>
@@ -291,16 +381,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* View Data Link */}
-        <div className="text-center mb-6">
-          <a
-            href="/view-data"
-            className="inline-flex items-center space-x-2 px-6 py-3 bg-white/20 backdrop-blur-md text-white rounded-xl hover:bg-white/30 transition-all border-2 border-white/30 hover:border-white/50 shadow-lg"
-          >
-            <Shield className="w-5 h-5" weight="bold" />
-            <span className="font-semibold">View Collected Data</span>
-          </a>
-        </div>
+        {/* View Data Link - Removed: Users can download data from generated link */}
 
         {/* Features Section - Enhanced with Better Icons */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">

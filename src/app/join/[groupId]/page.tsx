@@ -417,10 +417,30 @@ export default function JoinPage() {
 
   if (!groupData) {
     return (
-      <div className="min-h-screen bg-[#e5ddd5] flex items-center justify-center">
-        <div className="text-center">
-          <Spinner className="w-8 h-8 text-[#128C7E] animate-spin mx-auto" weight="bold" />
-          <p className="text-[#667781] mt-4 text-sm">Loading...</p>
+      <div className="min-h-screen bg-[#e5ddd5] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white shadow-sm">
+          {/* WhatsApp-style Header */}
+          <div className="bg-[#075E54] text-white">
+            <div className="px-4 py-3 flex items-center">
+              <WhatsappLogo className="w-6 h-6 text-white mr-3" weight="fill" />
+              <h1 className="text-lg font-medium">WhatsApp</h1>
+            </div>
+          </div>
+          
+          {/* Expired Message */}
+          <div className="bg-white px-6 py-8">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+                <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
+                  <span className="text-white text-2xl font-bold">!</span>
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-[#1f1f1f] mb-2">This link has expired</h3>
+              <p className="text-[#667781] text-sm">
+                This group invitation link has expired. Links expire after 10 minutes for security purposes. Please request a new link.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
